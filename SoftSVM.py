@@ -42,15 +42,12 @@ class SoftSVM(BaseEstimator, ClassifierMixin):
         :param y: targets for loss computation; array of shape (n_samples,)
         :return: the Soft SVM objective loss (float scalar)
         """
-        margins = (X.dot(w) + b).reshape(-1, 1)
-        hinge_inputs = np.multiply(margins, y.reshape(-1, 1))
+        margins = (X.dot(w) + b)
+        hinge_inputs = np.multiply(margins, y)
 
         norm = np.linalg.norm(w)
-
-        # TODO: complete the loss calculation
-        loss = 0.0
-
-        return
+        loss = C * np.sum(np.maximum(0, 1 - hinge_inputs)) + norm ** 2
+        return loss
 
     @staticmethod
     def subgradient(w, b: float, C: float, X, y):
@@ -65,8 +62,13 @@ class SoftSVM(BaseEstimator, ClassifierMixin):
         :return: a tuple with (the gradient of the weights, the gradient of the bias)
         """
         # TODO: calculate the analytical sub-gradient of soft-SVM w.r.t w and b
-        g_w = None
-        g_b = 0.0
+        margins = (X.dot(w) + b)
+        hinge_inputs = np.multiply(margins, y)
+        f_vector = np.where(hinge_inputs < 1, -1, 0)
+        y = np.array(y)
+        inter = y[:, np.newaxis] * X
+        g_w = C * np.sum(inter * f_vector[:, np.newaxis], axis=0) + 2 * w
+        g_b = C * np.sum(y * f_vector)
 
         return g_w, g_b
 
@@ -102,12 +104,12 @@ class SoftSVM(BaseEstimator, ClassifierMixin):
             batch_y = y[start_idx:end_idx]
 
             # TODO: Compute the (sub)gradient of the current *batch*
-            g_w, g_b = None, None
+            g_w, g_b = self.subgradient(self.w, self.b, self.C, batch_X, batch_y)
 
             # Perform a (sub)gradient step
             # TODO: update the learned parameters correctly
-            self.w = None
-            self.b = 0.0
+            self.w = self.w - self.lr * g_w
+            self.b = self.b - self.lr * g_b
 
             if keep_losses:
                 losses.append(self.loss(self.w, self.b, self.C, X, y))
@@ -137,6 +139,6 @@ class SoftSVM(BaseEstimator, ClassifierMixin):
                  NOTE: the labels must be either +1 or -1
         """
         # TODO: compute the predicted labels (+1 or -1)
-        y_pred = None
-
+        vec = X.dot(self.w) + self.b
+        y_pred = np.where(vec > 0, 1, -1)
         return y_pred
